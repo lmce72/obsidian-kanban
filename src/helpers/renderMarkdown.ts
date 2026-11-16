@@ -31,9 +31,16 @@ export function getNormalizedPath(path: string): NormalizedPath {
 
 export function applyCheckboxIndexes(dom: HTMLElement) {
   const checkboxes = dom.querySelectorAll('.task-list-item-checkbox');
+  const taskIndexes = new Map<Element, number>();
 
-  checkboxes.forEach((el, i) => {
-    (el as HTMLElement).dataset.checkboxIndex = i.toString();
+  checkboxes.forEach((el: HTMLElement) => {
+    // 同一任务的替代控件共享索引；嵌入笔记由其自身处理。
+    // Replacement controls share their task's index; embeds own their interactions.
+    if (el.closest('.markdown-embed')) return;
+    const task = el.closest('li.task-list-item');
+    if (!task) return;
+    if (!taskIndexes.has(task)) taskIndexes.set(task, taskIndexes.size);
+    el.dataset.checkboxIndex = taskIndexes.get(task).toString();
   });
 }
 

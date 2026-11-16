@@ -2,6 +2,7 @@ import update from 'immutability-helper';
 import { memo, useCallback, useEffect, useState } from 'preact/compat';
 import { StateManager } from 'src/StateManager';
 import { Path } from 'src/dnd/types';
+import { getCheckboxCycleStatus, showCheckboxStyleMenu } from 'src/helpers/checkboxStyleMenu';
 import { getTaskStatusDone, toggleTask } from 'src/parsers/helpers/inlineMetadata';
 
 import { BoardModifiers } from '../../helpers/boardModifiers';
@@ -29,7 +30,22 @@ export const ItemCheckbox = memo(function ItemCheckbox({
   const [isCtrlHoveringCheckbox, setIsCtrlHoveringCheckbox] = useState(false);
   const [isHoveringCheckbox, setIsHoveringCheckbox] = useState(false);
 
+  const setCheckChar = useCallback(
+    (symbol: string) => {
+      boardModifiers.updateItem(
+        path,
+        update(item, { data: { checkChar: { $set: symbol }, checked: { $set: symbol !== ' ' } } })
+      );
+    },
+    [item, boardModifiers, ...path]
+  );
+
   const onCheckboxChange = useCallback(() => {
+    const cycleStatus = getCheckboxCycleStatus(stateManager.app, item.data.checkChar);
+    if (cycleStatus !== undefined) {
+      setCheckChar(cycleStatus);
+      return;
+    }
     const updates = toggleTask(item, stateManager.file);
     if (updates) {
       const [itemStrings, checkChars, thisIndex] = updates;
@@ -55,7 +71,7 @@ export const ItemCheckbox = memo(function ItemCheckbox({
         })
       );
     }
-  }, [item, stateManager, boardModifiers, ...path]);
+  }, [item, stateManager, boardModifiers, setCheckChar, ...path]);
 
   useEffect(() => {
     if (isHoveringCheckbox) {
@@ -83,6 +99,10 @@ export const ItemCheckbox = memo(function ItemCheckbox({
 
   return (
     <div
+      onContextMenuCapture={(event) => {
+        if (!event.targetNode.instanceOf(HTMLInputElement)) return;
+        showCheckboxStyleMenu(stateManager.app, event, item.data.checkChar, setCheckChar);
+      }}
       onMouseEnter={(e) => {
         setIsHoveringCheckbox(true);
 

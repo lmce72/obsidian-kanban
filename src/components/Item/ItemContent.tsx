@@ -12,6 +12,8 @@ import {
 import { StateManager } from 'src/StateManager';
 import { useNestedEntityPath } from 'src/dnd/components/Droppable';
 import { Path } from 'src/dnd/types';
+import { getCheckboxCycleStatus, showCheckboxStyleMenu } from 'src/helpers/checkboxStyleMenu';
+import { applyCheckboxIndexes } from 'src/helpers/renderMarkdown';
 import { getTaskStatusDone, toggleTaskString } from 'src/parsers/helpers/inlineMetadata';
 
 import { MarkdownEditor, allowNewLine } from '../Editor/MarkdownEditor';
@@ -84,7 +86,12 @@ export interface ItemContentProps {
   isStatic: boolean;
 }
 
-function checkCheckbox(stateManager: StateManager, title: string, checkboxIndex: number) {
+function checkCheckbox(
+  stateManager: StateManager,
+  title: string,
+  checkboxIndex: number,
+  symbol?: string
+) {
   let count = 0;
 
   const lines = title.split(/\n\r?/g);
@@ -100,11 +107,12 @@ function checkCheckbox(stateManager: StateManager, title: string, checkboxIndex:
 
     if (match) {
       if (count === checkboxIndex) {
-        const updates = toggleTaskString(line, stateManager.file);
+        const nextSymbol = symbol ?? getCheckboxCycleStatus(stateManager.app, match[3]);
+        const updates = nextSymbol === undefined ? toggleTaskString(line, stateManager.file) : null;
         if (updates) {
           results.push(updates);
         } else {
-          const check = match[3] === ' ' ? getTaskStatusDone() : ' ';
+          const check = nextSymbol ?? (match[3] === ' ' ? getTaskStatusDone() : ' ');
           const m1 = match[1] ?? '';
           const m2 = match[2] ?? '';
           const m4 = match[4] ?? '';
@@ -236,20 +244,43 @@ export const ItemContent = memo(function ItemContent({
   }, [item]);
 
   const onCheckboxContainerClick = useCallback(
-    (e: PointerEvent) => {
-      const target = e.target as HTMLElement;
+    (e: MouseEvent) => {
+      const target = e.targetNode;
 
-      if (target.hasClass('task-list-item-checkbox')) {
-        if (target.dataset.src) {
+      if (target.instanceOf(HTMLElement) && target.hasClass('task-list-item-checkbox')) {
+        if (target.dataset.src || target.closest('.markdown-embed')) {
           return;
         }
 
+        // 在捕获阶段接管激活，支持键盘且阻止其它处理器重复写入。
+        // Own activation during capture, including keyboard clicks, before foreign handlers write.
+        applyCheckboxIndexes(e.currentTarget as HTMLElement);
         const checkboxIndex = parseInt(target.dataset.checkboxIndex, 10);
+        if (!Number.isInteger(checkboxIndex)) return;
+        e.preventDefault();
+        e.stopPropagation();
         const checked = checkCheckbox(stateManager, item.data.titleRaw, checkboxIndex);
         const updated = stateManager.updateItemContent(item, checked);
 
         boardModifiers.updateItem(path, updated);
       }
+    },
+    [path, boardModifiers, stateManager, item]
+  );
+
+  const onCheckboxContextMenu = useCallback(
+    (event: MouseEvent) => {
+      const target = event.targetNode;
+      if (!target.instanceOf(HTMLElement) || !target.hasClass('task-list-item-checkbox')) return;
+      if (target.dataset.src || target.closest('.markdown-embed')) return;
+      applyCheckboxIndexes(event.currentTarget as HTMLElement);
+      const index = Number.parseInt(target.dataset.checkboxIndex, 10);
+      if (!Number.isInteger(index)) return;
+      const current = target.closest('li.task-list-item')?.getAttribute('data-task') || ' ';
+      showCheckboxStyleMenu(stateManager.app, event, current, (symbol) => {
+        const content = checkCheckbox(stateManager, item.data.titleRaw, index, symbol);
+        boardModifiers.updateItem(path, stateManager.updateItemContent(item, content));
+      });
     },
     [path, boardModifiers, stateManager, item]
   );
@@ -282,7 +313,6 @@ export const ItemContent = memo(function ItemContent({
           className={c('item-markdown')}
           markdownString={item.data.title}
           searchQuery={searchQuery}
-          onPointerUp={onCheckboxContainerClick}
         />
       ) : (
         <MarkdownRenderer
@@ -290,7 +320,8 @@ export const ItemContent = memo(function ItemContent({
           className={c('item-markdown')}
           markdownString={item.data.title}
           searchQuery={searchQuery}
-          onPointerUp={onCheckboxContainerClick}
+          onClickCapture={onCheckboxContainerClick}
+          onContextMenuCapture={onCheckboxContextMenu}
         />
       )}
       {showMetadata && (

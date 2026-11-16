@@ -200,6 +200,9 @@ export default class KanbanPlugin extends Plugin {
       const reg = this.windowRegistry.get(win);
 
       reg?.viewStateReceivers.push(setState);
+      // 补上首次渲染与订阅之间新增的视图，避免快速加载时显示空白。
+      // Reconcile views added between initial render and subscription to avoid a blank board.
+      setState(this.getKanbanViews(win));
 
       return () => {
         reg?.viewStateReceivers.remove(setState);
