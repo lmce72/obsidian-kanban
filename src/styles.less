@@ -26,6 +26,9 @@
 
 .kanban-plugin,
 .kanban-plugin__drag-container {
+  // 卡片不继承移动表单控件的胶囊圆角。
+  // Cards must not inherit the pill-shaped radius of mobile form controls.
+  --kanban-card-radius: clamp(0px, var(--radius-s, 4px), 6px);
   a.tag {
     padding-inline: var(--tag-padding-x);
     padding-block: var(--tag-padding-y);
@@ -33,12 +36,16 @@
 }
 
 .kanban-plugin__table-wrapper {
+  flex: 1 1 0;
+  min-block-size: 0;
+  min-inline-size: 0;
   height: 100%;
   width: 100%;
   overflow: auto;
   padding-block-end: 40px;
 
   table {
+    min-inline-size: 100%;
     width: fit-content;
     margin-block: 0;
     margin-inline: auto;
@@ -66,6 +73,7 @@
     }
 
     .kanban-plugin__table-cell-wrapper {
+      min-inline-size: 100%;
       height: 100%;
       padding-inline: var(--size-4-2);
       padding-block: var(--size-2-2);
@@ -171,11 +179,28 @@
   }
 }
 
-.kanban-plugin__table-header {
+.kanban-plugin__table-wrapper button.kanban-plugin__table-header {
   display: flex;
   gap: var(--size-4-2);
   align-items: center;
   justify-content: space-between;
+  inline-size: 100%;
+  min-block-size: 24px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-normal);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 2px;
+  }
 }
 
 .kanban-plugin__table-header-sort {
@@ -239,10 +264,79 @@
   padding-block: 10px;
   padding-inline: 13px;
   display: flex;
-  justify-content: flex-end;
+  gap: var(--size-4-2);
   align-items: center;
   z-index: 2;
   background-color: var(--background-primary);
+  flex: 0 0 auto;
+  min-inline-size: 0;
+  > input {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    max-inline-size: none;
+    block-size: var(--input-height);
+  }
+  > button {
+    flex: 0 0 auto;
+  }
+}
+
+.kanban-plugin__archive-view {
+  flex: 1 1 0;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: var(--size-4-4);
+  overscroll-behavior: contain;
+}
+
+.kanban-plugin__archive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+  margin-block-end: var(--size-4-3);
+  h2 {
+    margin: 0;
+    font-size: var(--font-ui-medium);
+  }
+  span {
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+  }
+}
+
+.kanban-plugin__archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kanban-plugin__archive-card {
+  min-inline-size: 0;
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--kanban-card-radius, 4px);
+  background: var(--background-secondary);
+  overflow-wrap: anywhere;
+}
+
+.kanban-plugin__empty-state {
+  padding: var(--size-4-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.kanban-plugin__sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: clip;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 button.kanban-plugin__search-cancel-button {
@@ -268,6 +362,9 @@ button.kanban-plugin__search-cancel-button .kanban-plugin__icon {
 }
 
 .kanban-plugin__board {
+  flex: 1 1 0;
+  min-block-size: 0;
+  min-inline-size: 0;
   display: flex;
   width: 100%;
   height: 100%;
@@ -286,6 +383,8 @@ button.kanban-plugin__search-cancel-button .kanban-plugin__icon {
       height: fit-content;
       width: 100%;
       flex-direction: column;
+      align-items: stretch;
+      min-inline-size: 0;
     }
   }
 }
@@ -308,6 +407,8 @@ button.kanban-plugin__search-cancel-button .kanban-plugin__icon {
   .kanban-plugin__vertical & {
     margin-block-end: 10px;
     margin-inline-end: 0;
+    max-inline-size: 100%;
+    max-block-size: none;
   }
 }
 
@@ -618,7 +719,7 @@ button.kanban-plugin__lane-settings-button + button.kanban-plugin__lane-settings
     padding-inline: 8px;
     border: 1px solid var(--background-modifier-border);
     background-color: var(--background-primary);
-    border-radius: var(--input-radius);
+    border-radius: var(--kanban-card-radius, 4px);
     min-height: var(--input-height);
   }
 }
@@ -691,7 +792,7 @@ button.kanban-plugin__new-item-button {
 .kanban-plugin__item {
   font-size: 0.875rem;
   border: 1px solid var(--background-modifier-border);
-  border-radius: var(--input-radius);
+  border-radius: var(--kanban-card-radius, 4px);
   overflow: hidden;
   transition: 300ms opacity cubic-bezier(0.25, 1, 0.5, 1);
 

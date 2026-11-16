@@ -1,9 +1,9 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
 import { frontmatter } from 'micromark-extension-frontmatter';
-import { parseYaml } from 'obsidian';
 import { KanbanSettings, settingKeyLookup } from 'src/Settings';
 import { StateManager } from 'src/StateManager';
+import { getKanbanFormat, readFrontmatter } from 'src/helpers';
 import { getNormalizedPath } from 'src/helpers/renderMarkdown';
 
 import { frontmatterKey, getLinkedPageMetadata } from './common';
@@ -13,28 +13,6 @@ import { internalMarkdownLinks } from './extensions/internalMarkdownLink';
 import { tagExtension, tagFromMarkdown } from './extensions/tag';
 import { gfmTaskListItem, gfmTaskListItemFromMarkdown } from './extensions/taskList';
 import { FileAccessor } from './helpers/parser';
-
-function extractFrontmatter(md: string) {
-  let frontmatterStart = -1;
-  let openDashCount = 0;
-
-  for (let i = 0, len = md.length; i < len; i++) {
-    if (openDashCount < 3) {
-      if (md[i] === '-') {
-        openDashCount++;
-        continue;
-      } else {
-        throw new Error('Error parsing frontmatter');
-      }
-    }
-
-    if (frontmatterStart < 0) frontmatterStart = i;
-
-    if (md[i] === '-' && /[\r\n]/.test(md[i - 1]) && md[i + 1] === '-' && md[i + 2] === '-') {
-      return parseYaml(md.slice(frontmatterStart, i - 1).trim());
-    }
-  }
-}
 
 function extractSettingsFooter(md: string) {
   let hasEntered = false;
@@ -165,16 +143,17 @@ function getMdastExtensions(stateManager: StateManager) {
 }
 
 export function parseMarkdown(stateManager: StateManager, md: string) {
-  const mdFrontmatter = extractFrontmatter(md);
+  const mdFrontmatter = readFrontmatter(md);
+  if (!mdFrontmatter) throw new Error('Error parsing frontmatter');
   const mdSettings = extractSettingsFooter(md);
   const settings = { ...mdSettings };
   const fileFrontmatter: Record<string, any> = {};
 
   Object.keys(mdFrontmatter).forEach((key) => {
     if (key === frontmatterKey) {
-      const val = mdFrontmatter[key] === 'basic' ? 'board' : mdFrontmatter[key];
+      const val = getKanbanFormat(mdFrontmatter[key]);
       settings[key] = val;
-      fileFrontmatter[key] = val;
+      fileFrontmatter[key] = mdFrontmatter[key];
     } else if (settingKeyLookup.has(key as keyof KanbanSettings)) {
       settings[key] = mdFrontmatter[key];
     } else {

@@ -1,6 +1,7 @@
 import { around } from 'monkey-around';
 import {
   MarkdownView,
+  Notice,
   Platform,
   Plugin,
   TFile,
@@ -17,7 +18,7 @@ import { KanbanSettings, KanbanSettingsTab } from './Settings';
 import { StateManager } from './StateManager';
 import { DateSuggest, TimeSuggest } from './components/Editor/suggest';
 import { getParentWindow } from './dnd/util/getWindow';
-import { hasFrontmatterKey } from './helpers';
+import { getKanbanFormat, hasFrontmatterKey, hasFrontmatterKeyRaw } from './helpers';
 import { t } from './lang/helpers';
 import { basicFrontmatter, frontmatterKey } from './parsers/common';
 
@@ -321,6 +322,8 @@ export default class KanbanPlugin extends Plugin {
   }
 
   async setMarkdownView(leaf: WorkspaceLeaf, focus: boolean = true) {
+    const state = leaf.view.getState();
+    this.kanbanFileModes[(leaf as any).id || state.file] = 'markdown';
     await leaf.setViewState(
       {
         type: 'markdown',
@@ -332,11 +335,26 @@ export default class KanbanPlugin extends Plugin {
   }
 
   async setKanbanView(leaf: WorkspaceLeaf) {
+    const state = leaf.view.getState();
+    this.kanbanFileModes[(leaf as any).id || state.file] = kanbanViewType;
     await leaf.setViewState({
       type: kanbanViewType,
       state: leaf.view.getState(),
       popstate: true,
     } as ViewState);
+  }
+
+  async openMarkdownAsKanban(view: MarkdownView) {
+    if (!view.file || !hasFrontmatterKeyRaw(view.getViewData())) return;
+    try {
+      // 保存当前编辑再切换，不等待元数据缓存追上 frontmatter 的修改。
+      // Save live edits before switching without waiting for the frontmatter cache.
+      await view.save();
+      await this.setKanbanView(view.leaf);
+    } catch (error) {
+      console.error('[obsidian-kanban] Failed to open board', error);
+      new Notice(t('Something went wrong'));
+    }
   }
 
   async newKanban(folder?: TFolder) {
@@ -416,11 +434,19 @@ export default class KanbanPlugin extends Plugin {
           }
         }
 
+        // 菜单事件可能不带 leaf；只匹配该文件的 Markdown 视图。
+        // Menu events can omit leaf; resolve only a Markdown view of this file.
+        const markdownLeaf = leafIsMarkdown
+          ? leaf
+          : this.app.workspace.getLeavesOfType('markdown').find((candidate) => {
+              return candidate.view instanceof MarkdownView && candidate.view.file === file;
+            });
+        const markdownView = markdownLeaf?.view;
         if (
-          leafIsMarkdown &&
           fileIsFile &&
-          ['more-options', 'pane-more-options', 'tab-header'].includes(source) &&
-          hasFrontmatterKey(file)
+          markdownView instanceof MarkdownView &&
+          markdownView.file === file &&
+          hasFrontmatterKeyRaw(markdownView.getViewData())
         ) {
           menu.addItem((item) => {
             item
@@ -428,8 +454,7 @@ export default class KanbanPlugin extends Plugin {
               .setIcon(kanbanIcon)
               .setSection('pane')
               .onClick(() => {
-                this.kanbanFileModes[(leaf as any).id || file.path] = kanbanViewType;
-                this.setKanbanView(leaf);
+                void this.openMarkdownAsKanban(markdownView);
               });
           });
         }
@@ -451,8 +476,6 @@ export default class KanbanPlugin extends Plugin {
           if (Platform.isMobile) {
             const stateManager = this.stateManagers.get(file);
             const kanbanView = leaf.view as KanbanView;
-            const boardView =
-              kanbanView.viewSettings[frontmatterKey] || stateManager.getSetting(frontmatterKey);
 
             menu
               .addItem((item) => {
@@ -473,40 +496,6 @@ export default class KanbanPlugin extends Plugin {
                     stateManager.archiveCompletedCards();
                   });
               })
-              .addItem((item) => {
-                item
-                  .setTitle(t('Archive completed cards'))
-                  .setIcon('lucide-archive')
-                  .setSection('pane')
-                  .onClick(() => {
-                    const stateManager = this.stateManagers.get(file);
-                    stateManager.archiveCompletedCards();
-                  });
-              })
-              .addItem((item) =>
-                item
-                  .setTitle(t('View as board'))
-                  .setSection('pane')
-                  .setIcon('lucide-trello')
-                  .setChecked(boardView === 'basic' || boardView === 'board')
-                  .onClick(() => kanbanView.setView('board'))
-              )
-              .addItem((item) =>
-                item
-                  .setTitle(t('View as table'))
-                  .setSection('pane')
-                  .setIcon('lucide-table')
-                  .setChecked(boardView === 'table')
-                  .onClick(() => kanbanView.setView('table'))
-              )
-              .addItem((item) =>
-                item
-                  .setTitle(t('View as list'))
-                  .setSection('pane')
-                  .setIcon('lucide-server')
-                  .setChecked(boardView === 'list')
-                  .onClick(() => kanbanView.setView('list'))
-              )
               .addItem((item) =>
                 item
                   .setTitle(t('Open board settings'))
@@ -514,6 +503,7 @@ export default class KanbanPlugin extends Plugin {
                   .setIcon('lucide-settings')
                   .onClick(() => kanbanView.getBoardSettings())
               );
+            kanbanView.addViewMenuItems(menu);
           }
         }
       })
@@ -577,6 +567,27 @@ export default class KanbanPlugin extends Plugin {
 
   registerCommands() {
     this.addCommand({
+      id: 'view-archive',
+      name: t('View archive'),
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(KanbanView);
+        if (!view) return false;
+        if (!checking) view.setArchiveView(true);
+        return true;
+      },
+    });
+    this.addCommand({
+      id: 'open-as-kanban-board',
+      name: t('Open as kanban board'),
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view?.file || !hasFrontmatterKeyRaw(view.getViewData())) return false;
+        if (!checking) void this.openMarkdownAsKanban(view);
+        return true;
+      },
+    });
+
+    this.addCommand({
       id: 'create-new-kanban-board',
       name: t('Create new board'),
       callback: () => this.newKanban(),
@@ -599,30 +610,20 @@ export default class KanbanPlugin extends Plugin {
       id: 'toggle-kanban-view',
       name: t('Toggle between Kanban and markdown mode'),
       checkCallback: (checking) => {
-        const activeFile = app.workspace.getActiveFile();
-
-        if (!activeFile) return false;
-
-        const fileCache = app.metadataCache.getFileCache(activeFile);
-        const fileIsKanban = !!fileCache?.frontmatter && !!fileCache.frontmatter[frontmatterKey];
-
-        if (checking) {
-          return fileIsKanban;
+        const board = this.app.workspace.getActiveViewOfType(KanbanView);
+        const markdown = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!board && (!markdown?.file || !hasFrontmatterKeyRaw(markdown.getViewData())))
+          return false;
+        if (checking) return true;
+        if (board) {
+          void this.setMarkdownView(board.leaf).catch((error) => {
+            console.error('[obsidian-kanban] Failed to open Markdown', error);
+            new Notice(t('Something went wrong'));
+          });
+        } else if (markdown) {
+          void this.openMarkdownAsKanban(markdown);
         }
-
-        const activeView = app.workspace.getActiveViewOfType(KanbanView);
-
-        if (activeView) {
-          this.kanbanFileModes[(activeView.leaf as any).id || activeFile.path] = 'markdown';
-          this.setMarkdownView(activeView.leaf);
-        } else if (fileIsKanban) {
-          const activeView = app.workspace.getActiveViewOfType(MarkdownView);
-
-          if (activeView) {
-            this.kanbanFileModes[(activeView.leaf as any).id || activeFile.path] = kanbanViewType;
-            this.setKanbanView(activeView.leaf);
-          }
-        }
+        return true;
       },
     });
 
@@ -794,7 +795,7 @@ export default class KanbanPlugin extends Plugin {
               // Then check for the kanban frontMatterKey
               const cache = self.app.metadataCache.getCache(state.state.file);
 
-              if (cache?.frontmatter && cache.frontmatter[frontmatterKey]) {
+              if (getKanbanFormat(cache?.frontmatter?.[frontmatterKey])) {
                 // If we have it, force the view type to kanban
                 const newState = {
                   ...state,

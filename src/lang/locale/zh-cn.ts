@@ -2,6 +2,10 @@
 import { Lang } from './en';
 
 const lang: Partial<Lang> = {
+  'View archive': '查看归档',
+  'Archived cards': '已归档卡片',
+  'No archived cards': '暂无归档卡片',
+  'No matching cards': '没有匹配的卡片',
   // main.ts
   'Open as kanban board': '打开为看板',
   'Create new board': '创建新看板',
@@ -64,8 +68,8 @@ const lang: Partial<Lang> = {
   'List width': '列宽',
   'Enter a number to set the list width in pixels.': '输入一个像素值来设置列的宽度',
   'Maximum number of archived cards': '单个看板内已归档卡片的最大数量',
-  "Archived cards can be viewed in markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.":
-    '已归档卡片可以在 Markdown 模式下查看。该设置将使已归档卡片在达到最大数量时删除旧卡。设置为 -1 可以永久保留所有归档卡片。',
+  "Archived cards can be viewed from the view menu or in Markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.":
+    '已归档卡片可以从视图菜单或在 Markdown 模式下查看。该设置将使已归档卡片在达到最大数量时删除旧卡。设置为 -1 可以永久保留所有归档卡片。',
   'Display card checkbox': '展示卡片复选框',
   'When toggled, a checkbox will be displayed with each card': '打开时，复选框会出现在每张卡片上',
   'Reset to default': '还原初始设置',

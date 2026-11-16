@@ -9,11 +9,12 @@ import classcat from 'classcat';
 import update from 'immutability-helper';
 import { useEffect, useMemo, useRef } from 'preact/compat';
 import { IntersectionObserverHandler } from 'src/dnd/managers/ScrollManager';
+import { t } from 'src/lang/helpers';
 
 import { StateManager } from '../../StateManager';
 import { Icon } from '../Icon/Icon';
 import { IntersectionObserverContext } from '../context';
-import { c } from '../helpers';
+import { c, generateInstanceId } from '../helpers';
 import { Board } from '../types';
 import { fuzzyAnyFilter, useTableColumns } from './helpers';
 
@@ -92,9 +93,11 @@ export function TableView({
   stateManager: StateManager;
 }) {
   const { bindObserver, context } = useIntersectionObserver();
+  const captionId = useMemo(() => `kanban-table-${generateInstanceId()}`, []);
   const { data, columns, state, setSorting } = useTableColumns(boardData, stateManager);
   const table = useReactTable({
     data,
+    getRowId: (row) => row.item.id,
     columns,
     state,
     globalFilterFn: fuzzyAnyFilter,
@@ -142,16 +145,32 @@ export function TableView({
   }, [tableWidth]);
 
   return (
-    <div className={`markdown-rendered ${c('table-wrapper')}`} ref={bindObserver}>
+    <div
+      className={`markdown-rendered ${c('table-wrapper')}`}
+      ref={bindObserver}
+      tabIndex={0}
+      role="region"
+      aria-labelledby={captionId}
+    >
       <IntersectionObserverContext.Provider value={context}>
         <table style={tableStyle}>
+          <caption id={captionId} className={c('sr-only')}>
+            {t('View as table')}
+          </caption>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const sort = header.column.getIsSorted();
                   return (
-                    <th key={header.id} className="mod-has-icon">
+                    <th
+                      key={header.id}
+                      className="mod-has-icon"
+                      scope="col"
+                      aria-sort={
+                        sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : undefined
+                      }
+                    >
                       <div
                         className={c('table-cell-wrapper')}
                         style={{
@@ -159,14 +178,16 @@ export function TableView({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div
+                          <button
+                            type="button"
+                            disabled={!header.column.getCanSort()}
                             className={c('table-header')}
                             onClick={header.column.getToggleSortingHandler()}
                           >
                             <div>
                               {flexRender(header.column.columnDef.header, header.getContext())}
                             </div>
-                            <div className={c('table-header-sort')}>
+                            <div className={c('table-header-sort')} aria-hidden="true">
                               {sort === 'asc' ? (
                                 <Icon name="lucide-chevron-up" />
                               ) : sort === 'desc' ? (
@@ -175,7 +196,7 @@ export function TableView({
                                 <Icon name="lucide-chevrons-up-down" />
                               )}
                             </div>
-                          </div>
+                          </button>
                         )}
                         <div
                           {...{
@@ -195,6 +216,13 @@ export function TableView({
             ))}
           </thead>
           <tbody>
+            {!table.getRowModel().rows.length && (
+              <tr>
+                <td colSpan={table.getVisibleLeafColumns().length}>
+                  <p className={c('empty-state')}>{t('No matching cards')}</p>
+                </td>
+              </tr>
+            )}
             {table.getRowModel().rows.map((row) => (
               <tr key={row.id}>
                 {row.getVisibleCells().map((cell) => {

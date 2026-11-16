@@ -1,6 +1,8 @@
 # Obsidian Kanban Plugin
 
-## Maintained fork: 2.0.52
+## Maintained fork: 2.0.53
+
+Version 2.0.53 adds an **Open as kanban board** command/menu for notes with `kanban-plugin: board`, including the single-item list form used by Properties. It recognizes live editor contents, saves edits before switching, and shares its YAML parser with board loading. The view menu now includes a searchable, read-only **View archive** entry with a card count. Search fills the pane width, list view defaults to full-width lanes, and table view adds keyboard-accessible sorting and scrolling. Card corners use a separate radius capped at 6px instead of inheriting mobile form-control rounding. See [view navigation and layout validation](docs/view-navigation.md).
 
 This fork preserves the original plugin ID (`obsidian-kanban`) and credits mgmeyers and the upstream contributors. It fixes nested checkbox targeting when another Markdown processor, such as Task Genius, inserts replacement controls, and fixes blank boards during fast loading or reopening the current file.
 

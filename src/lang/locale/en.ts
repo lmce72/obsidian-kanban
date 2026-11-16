@@ -1,6 +1,13 @@
 // English
 
 const en = {
+  // 保留旧键以兼容尚未更新的语言包。 / Retain the legacy key for existing locale catalogs.
+  "Archived cards can be viewed in markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.":
+    "Archived cards can be viewed in markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.",
+  'View archive': 'View archive',
+  'Archived cards': 'Archived cards',
+  'No archived cards': 'No archived cards',
+  'No matching cards': 'No matching cards',
   // main.ts
   'Open as kanban board': 'Open as kanban board',
   'Create new board': 'Create new board',
@@ -71,8 +78,8 @@ const en = {
   'Enter a number to set the list width in pixels.':
     'Enter a number to set the list width in pixels.',
   'Maximum number of archived cards': 'Maximum number of archived cards',
-  "Archived cards can be viewed in markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.":
-    "Archived cards can be viewed in markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.",
+  "Archived cards can be viewed from the view menu or in Markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.":
+    "Archived cards can be viewed from the view menu or in Markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely.",
   'Display card checkbox': 'Display card checkbox',
   'When toggled, a checkbox will be displayed with each card':
     'When toggled, a checkbox will be displayed with each card',

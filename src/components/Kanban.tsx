@@ -14,6 +14,7 @@ import { t } from 'src/lang/helpers';
 import { DndScope } from '../dnd/components/Scope';
 import { getBoardModifiers } from '../helpers/boardModifiers';
 import { frontmatterKey } from '../parsers/common';
+import { ArchiveView } from './ArchiveView';
 import { Icon } from './Icon/Icon';
 import { Lanes } from './Lane/Lane';
 import { LaneForm } from './Lane/LaneForm';
@@ -55,6 +56,7 @@ export const Kanban = ({ view, stateManager }: KanbanProps) => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [isArchiveVisible, setIsArchiveVisible] = useState(view.isArchiveVisible);
 
   const [isLaneFormVisible, setIsLaneFormVisible] = useState<boolean>(
     boardData?.children.length === 0
@@ -114,10 +116,12 @@ export const Kanban = ({ view, stateManager }: KanbanProps) => {
 
     view.emitter.on('hotkey', onSearchHotkey);
     view.emitter.on('showLaneForm', showLaneForm);
+    view.emitter.on('archive-view', setIsArchiveVisible);
 
     return () => {
       view.emitter.off('hotkey', onSearchHotkey);
       view.emitter.off('showLaneForm', showLaneForm);
+      view.emitter.off('archive-view', setIsArchiveVisible);
     };
   }, [view]);
 
@@ -225,15 +229,15 @@ export const Kanban = ({ view, stateManager }: KanbanProps) => {
             ])}
             {...html5DragHandlers}
           >
-            {(isLaneFormVisible || boardData.children.length === 0) && (
+            {!isArchiveVisible && (isLaneFormVisible || boardData.children.length === 0) && (
               <LaneForm onNewLane={onNewLane} closeLaneForm={closeLaneForm} />
             )}
             {isSearching && (
-              <div className={c('search-wrapper')}>
+              <div className={c('search-wrapper')} role="search" aria-label={t('Search...')}>
                 <input
                   ref={searchRef}
                   value={searchQuery}
-                  onChange={(e) => {
+                  onInput={(e) => {
                     setSearchQuery((e.target as HTMLInputElement).value);
                   }}
                   onKeyDown={(e) => {
@@ -247,8 +251,10 @@ export const Kanban = ({ view, stateManager }: KanbanProps) => {
                   type="text"
                   className={c('filter-input')}
                   placeholder={t('Search...')}
+                  aria-label={t('Search...')}
                 />
-                <a
+                <button
+                  type="button"
                   className={`${c('search-cancel-button')} clickable-icon`}
                   onClick={() => {
                     setSearchQuery('');
@@ -258,11 +264,17 @@ export const Kanban = ({ view, stateManager }: KanbanProps) => {
                   aria-label={t('Cancel')}
                 >
                   <Icon name="lucide-x" />
-                </a>
+                </button>
               </div>
             )}
-            {boardView === 'table' ? (
+            {isArchiveVisible ? (
+              <ArchiveView items={boardData.data.archive} query={searchValue.query} />
+            ) : boardView === 'table' ? (
               <TableView boardData={boardData} stateManager={stateManager} />
+            ) : searchValue.query && searchValue.items.size === 0 ? (
+              <p className={c('empty-state')} role="status">
+                {t('No matching cards')}
+              </p>
             ) : (
               <ScrollContainer
                 id={view.id}

@@ -4,6 +4,7 @@ import {
   HoverParent,
   HoverPopover,
   Menu,
+  Notice,
   Platform,
   TFile,
   TextFileView,
@@ -39,6 +40,7 @@ export class KanbanView extends TextFileView implements HoverParent {
 
   activeEditor: any;
   viewSettings: KanbanViewSettings = {};
+  isArchiveVisible = false;
 
   get isPrimary(): boolean {
     return this.plugin.getStateManager(this.file)?.getAView() === this;
@@ -100,6 +102,7 @@ export class KanbanView extends TextFileView implements HoverParent {
 
   validatePreviewCache(board: Board) {
     const seenKeys = new Set<string>();
+    board.data.archive.forEach((item) => seenKeys.add(`archive:${item.id}`));
     board.children.forEach((lane) => {
       seenKeys.add(lane.id);
       lane.children.forEach((item) => {
@@ -116,10 +119,64 @@ export class KanbanView extends TextFileView implements HoverParent {
   }
 
   setView(view: KanbanFormat) {
+    this.setArchiveView(false);
     this.setViewState(frontmatterKey, view);
-    this.app.fileManager.processFrontMatter(this.file, (frontmatter) => {
-      frontmatter[frontmatterKey] = view;
+    const stateManager = this.plugin.stateManagers.get(this.file);
+    // 同步内存快照，防止下一次卡片保存覆盖刚切换的视图。
+    // Keep the board snapshot current so the next card save cannot revert the chosen view.
+    stateManager.setState(
+      (board) =>
+        update(board, {
+          data: {
+            settings: { [frontmatterKey]: { $set: view } },
+            frontmatter: { [frontmatterKey]: { $set: view } },
+          },
+        }),
+      false
+    );
+    void this.app.fileManager
+      .processFrontMatter(this.file, (frontmatter) => {
+        frontmatter[frontmatterKey] = view;
+      })
+      .catch((error) => {
+        console.error('[obsidian-kanban] Failed to save view format', error);
+        new Notice(t('Something went wrong'));
+      });
+  }
+
+  setArchiveView(visible: boolean) {
+    this.isArchiveVisible = visible;
+    this.emitter.emit('archive-view', visible);
+  }
+
+  addViewMenuItems(menu: Menu) {
+    const current = this.getViewState(frontmatterKey);
+    const options = [
+      ['board', 'View as board', 'lucide-trello'],
+      ['table', 'View as table', 'lucide-table'],
+      ['list', 'View as list', 'lucide-server'],
+    ] as const;
+    options.forEach(([format, title, icon]) => {
+      menu.addItem((item) =>
+        item
+          .setTitle(t(title))
+          .setIcon(icon)
+          .setChecked(
+            !this.isArchiveVisible &&
+              (current === format || (format === 'board' && current === 'basic'))
+          )
+          .onClick(() => this.setView(format))
+      );
     });
+    menu.addSeparator();
+    menu.addItem((item) =>
+      item
+        .setTitle(`${t('View archive')} (${this.getBoard().data.archive.length})`)
+        .setIcon('lucide-archive')
+        .setChecked(this.isArchiveVisible)
+        .onClick(() => this.setArchiveView(true))
+    );
+    return menu;
   }
 
   setBoard(board: Board, shouldSave: boolean = true) {
@@ -151,7 +208,10 @@ export class KanbanView extends TextFileView implements HoverParent {
   async loadFile(file: TFile) {
     // 重开当前文件时核心可能跳过 setViewData，保留现有注册。
     // Core can skip setViewData when reopening the same file; keep its registration.
-    if (this.file !== file) this.plugin.removeView(this);
+    if (this.file !== file) {
+      this.setArchiveView(false);
+      this.plugin.removeView(this);
+    }
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     return super.loadFile(file);
@@ -389,30 +449,7 @@ export class KanbanView extends TextFileView implements HoverParent {
         'lucide-view',
         t('Board view'),
         (evt) => {
-          const view = this.viewSettings[frontmatterKey] || stateManager.getSetting(frontmatterKey);
-          new Menu()
-            .addItem((item) =>
-              item
-                .setTitle(t('View as board'))
-                .setIcon('lucide-trello')
-                .setChecked(view === 'basic' || view === 'board')
-                .onClick(() => this.setView('board'))
-            )
-            .addItem((item) =>
-              item
-                .setTitle(t('View as table'))
-                .setIcon('lucide-table')
-                .setChecked(view === 'table')
-                .onClick(() => this.setView('table'))
-            )
-            .addItem((item) =>
-              item
-                .setTitle(t('View as list'))
-                .setIcon('lucide-server')
-                .setChecked(view === 'list')
-                .onClick(() => this.setView('list'))
-            )
-            .showAtMouseEvent(evt);
+          this.addViewMenuItems(new Menu()).showAtMouseEvent(evt);
         }
       );
     } else if (!stateManager.getSetting('show-set-view') && this.actionButtons['show-set-view']) {

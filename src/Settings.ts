@@ -373,12 +373,7 @@ export class SettingsManager {
           toggleComponent = toggle;
 
           const [value, globalValue] = this.getSetting('full-list-lane-width', local);
-
-          if (value !== undefined) {
-            toggle.setValue(value as boolean);
-          } else if (globalValue !== undefined) {
-            toggle.setValue(globalValue as boolean);
-          }
+          toggle.setValue((value ?? globalValue ?? true) as boolean);
 
           toggle.onChange((newValue) => {
             this.applySettingsUpdate({
@@ -393,7 +388,7 @@ export class SettingsManager {
             .setTooltip(t('Reset to default'))
             .onClick(() => {
               const [, globalValue] = this.getSetting('full-list-lane-width', local);
-              toggleComponent.setValue(!!globalValue);
+              toggleComponent.setValue((globalValue ?? true) as boolean);
 
               this.applySettingsUpdate({
                 $unset: ['full-list-lane-width'],
@@ -406,7 +401,7 @@ export class SettingsManager {
       .setName(t('Maximum number of archived cards'))
       .setDesc(
         t(
-          "Archived cards can be viewed in markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely."
+          "Archived cards can be viewed from the view menu or in Markdown mode. This setting will begin removing old cards once the limit is reached. Setting this value to -1 will allow a board's archive to grow infinitely."
         )
       )
       .addText((text) => {
