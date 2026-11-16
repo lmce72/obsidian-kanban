@@ -117,6 +117,9 @@ export const Kanban = ({ view, stateManager }: KanbanProps) => {
     view.emitter.on('hotkey', onSearchHotkey);
     view.emitter.on('showLaneForm', showLaneForm);
     view.emitter.on('archive-view', setIsArchiveVisible);
+    // 从 Markdown 直接进入归档时，事件可能早于组件订阅。
+    // A direct Markdown-to-archive transition can precede this subscription.
+    setIsArchiveVisible(view.isArchiveVisible);
 
     return () => {
       view.emitter.off('hotkey', onSearchHotkey);

@@ -1,6 +1,8 @@
 # Obsidian Kanban Plugin
 
-## Maintained fork: 2.0.53
+## Maintained fork: 2.0.54
+
+Version 2.0.54 adds a dedicated **View archive** header button in Kanban. Eligible Markdown notes expose both **Open as kanban board** and **View archive** in the native `.view-actions` header container. Their context-menu entries use the `view-actions` section. Namespaced local SVG icons replace the unavailable built-in board icon for the ribbon, view tabs, and menu entries. Header actions track live property edits and are removed when the note is no longer eligible.
 
 Version 2.0.53 adds an **Open as kanban board** command/menu for notes with `kanban-plugin: board`, including the single-item list form used by Properties. It recognizes live editor contents, saves edits before switching, and shares its YAML parser with board loading. The view menu now includes a searchable, read-only **View archive** entry with a card count. Search fills the pane width, list view defaults to full-width lanes, and table view adds keyboard-accessible sorting and scrolling. Card corners use a separate radius capped at 6px instead of inheriting mobile form-control rounding. See [view navigation and layout validation](docs/view-navigation.md).
 

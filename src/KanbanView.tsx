@@ -22,12 +22,13 @@ import { getParentWindow } from './dnd/util/getWindow';
 import { gotoNextDailyNote, gotoPrevDailyNote, hasFrontmatterKeyRaw } from './helpers';
 import { bindMarkdownEvents } from './helpers/renderMarkdown';
 import { PromiseQueue } from './helpers/util';
+import { archiveViewIcon, kanbanIcon } from './icons';
 import { t } from './lang/helpers';
 import KanbanPlugin from './main';
 import { frontmatterKey } from './parsers/common';
 
 export const kanbanViewType = 'kanban';
-export const kanbanIcon = 'lucide-trello';
+export { kanbanIcon } from './icons';
 
 export class KanbanView extends TextFileView implements HoverParent {
   plugin: KanbanPlugin;
@@ -146,13 +147,26 @@ export class KanbanView extends TextFileView implements HoverParent {
 
   setArchiveView(visible: boolean) {
     this.isArchiveVisible = visible;
+    this.actionButtons['show-archive']?.setAttribute('aria-pressed', String(visible));
     this.emitter.emit('archive-view', visible);
   }
 
-  addViewMenuItems(menu: Menu) {
+  addArchiveMenuItem(menu: Menu) {
+    menu.addItem((item) =>
+      item
+        .setTitle(`${t('View archive')} (${this.getBoard().data.archive.length})`)
+        .setIcon(archiveViewIcon)
+        .setSection('view-actions')
+        .setChecked(this.isArchiveVisible)
+        .onClick(() => this.setArchiveView(true))
+    );
+    return menu;
+  }
+
+  addViewMenuItems(menu: Menu, includeArchive = true) {
     const current = this.getViewState(frontmatterKey);
     const options = [
-      ['board', 'View as board', 'lucide-trello'],
+      ['board', 'View as board', kanbanIcon],
       ['table', 'View as table', 'lucide-table'],
       ['list', 'View as list', 'lucide-server'],
     ] as const;
@@ -161,6 +175,7 @@ export class KanbanView extends TextFileView implements HoverParent {
         item
           .setTitle(t(title))
           .setIcon(icon)
+          .setSection('view-actions')
           .setChecked(
             !this.isArchiveVisible &&
               (current === format || (format === 'board' && current === 'basic'))
@@ -169,14 +184,7 @@ export class KanbanView extends TextFileView implements HoverParent {
       );
     });
     menu.addSeparator();
-    menu.addItem((item) =>
-      item
-        .setTitle(`${t('View archive')} (${this.getBoard().data.archive.length})`)
-        .setIcon('lucide-archive')
-        .setChecked(this.isArchiveVisible)
-        .onClick(() => this.setArchiveView(true))
-    );
-    return menu;
+    return includeArchive ? this.addArchiveMenuItem(menu) : menu;
   }
 
   setBoard(board: Board, shouldSave: boolean = true) {
@@ -424,6 +432,22 @@ export class KanbanView extends TextFileView implements HoverParent {
     const stateManager = this.plugin.getStateManager(this.file);
 
     if (!stateManager) return;
+
+    if (!this.actionButtons['show-archive']) {
+      this.actionButtons['show-archive'] = this.addAction(
+        archiveViewIcon,
+        t('View archive'),
+        () => {
+          this.setArchiveView(!this.isArchiveVisible);
+        }
+      );
+    }
+    const archiveButton = this.actionButtons['show-archive'];
+    archiveButton.setAttribute(
+      'aria-label',
+      `${t('View archive')} (${stateManager.state?.data.archive.length ?? 0})`
+    );
+    archiveButton.setAttribute('aria-pressed', String(this.isArchiveVisible));
 
     if (
       stateManager.getSetting('show-board-settings') &&

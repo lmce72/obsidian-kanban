@@ -19,6 +19,7 @@ import { StateManager } from './StateManager';
 import { DateSuggest, TimeSuggest } from './components/Editor/suggest';
 import { getParentWindow } from './dnd/util/getWindow';
 import { getKanbanFormat, hasFrontmatterKey, hasFrontmatterKeyRaw } from './helpers';
+import { archiveViewIcon, registerKanbanIcons } from './icons';
 import { t } from './lang/helpers';
 import { basicFrontmatter, frontmatterKey } from './parsers/common';
 
@@ -55,6 +56,7 @@ export default class KanbanPlugin extends Plugin {
   stateManagers: Map<TFile, StateManager> = new Map();
 
   windowRegistry: Map<Window, WindowRegistry> = new Map();
+  markdownActions = new Map<MarkdownView, HTMLElement[]>();
 
   _loaded: boolean = false;
 
@@ -79,6 +81,9 @@ export default class KanbanPlugin extends Plugin {
   }
 
   onunload() {
+    this.updateMarkdownActions.cancel();
+    this.markdownActions.forEach((buttons) => buttons.forEach((button) => button.remove()));
+    this.markdownActions.clear();
     this.MarkdownEditor = null;
     this.windowRegistry.forEach((reg, win) => {
       reg.viewStateReceivers.forEach((fn) => fn([]));
@@ -97,6 +102,7 @@ export default class KanbanPlugin extends Plugin {
   MarkdownEditor: any;
 
   async onload() {
+    registerKanbanIcons();
     await this.loadSettings();
 
     this.MarkdownEditor = getEditorClass(this.app);
@@ -134,6 +140,29 @@ export default class KanbanPlugin extends Plugin {
     this.registerMonkeyPatches();
     this.registerCommands();
     this.registerEvents();
+    this.registerEvent(
+      this.app.workspace.on('layout-change', () => {
+        this.updateMarkdownActions();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => {
+        this.updateMarkdownActions();
+      })
+    );
+    this.registerEvent(
+      this.app.workspace.on('editor-change', () => {
+        this.updateMarkdownActions();
+      })
+    );
+    this.registerEvent(
+      this.app.metadataCache.on('changed', () => {
+        this.updateMarkdownActions();
+      })
+    );
+    this.app.workspace.onLayoutReady(() => {
+      this.updateMarkdownActions();
+    });
 
     // Mount an empty component to start; views will be added as we go
     this.mount(window);
@@ -344,18 +373,55 @@ export default class KanbanPlugin extends Plugin {
     } as ViewState);
   }
 
-  async openMarkdownAsKanban(view: MarkdownView) {
+  async openMarkdownAsKanban(view: MarkdownView, showArchive = false) {
     if (!view.file || !hasFrontmatterKeyRaw(view.getViewData())) return;
     try {
       // 保存当前编辑再切换，不等待元数据缓存追上 frontmatter 的修改。
       // Save live edits before switching without waiting for the frontmatter cache.
       await view.save();
       await this.setKanbanView(view.leaf);
+      if (showArchive && view.leaf.view instanceof KanbanView) {
+        view.leaf.view.setArchiveView(true);
+      }
     } catch (error) {
       console.error('[obsidian-kanban] Failed to open board', error);
       new Notice(t('Something went wrong'));
     }
   }
+
+  updateMarkdownActions = debounce(
+    () => {
+      if (!this._loaded) return;
+      // 页头按钮使用原生 addAction，跟随文件资格及视图生命周期清理。
+      // Native header actions follow note eligibility and are removed with their views.
+      const eligible = new Set<MarkdownView>();
+      this.app.workspace.getLeavesOfType('markdown').forEach((leaf) => {
+        const view = leaf.view;
+        if (view instanceof MarkdownView && view.file && hasFrontmatterKeyRaw(view.getViewData())) {
+          eligible.add(view);
+        }
+      });
+      this.markdownActions.forEach((buttons, view) => {
+        if (!eligible.has(view)) {
+          buttons.forEach((button) => button.remove());
+          this.markdownActions.delete(view);
+        }
+      });
+      eligible.forEach((view) => {
+        if (this.markdownActions.has(view)) return;
+        this.markdownActions.set(view, [
+          view.addAction(kanbanIcon, t('Open as kanban board'), () => {
+            void this.openMarkdownAsKanban(view);
+          }),
+          view.addAction(archiveViewIcon, t('View archive'), () => {
+            void this.openMarkdownAsKanban(view, true);
+          }),
+        ]);
+      });
+    },
+    50,
+    true
+  );
 
   async newKanban(folder?: TFolder) {
     const targetFolder = folder
@@ -423,7 +489,7 @@ export default class KanbanPlugin extends Plugin {
               item
                 .setTitle(t('Open as kanban board'))
                 .setIcon(kanbanIcon)
-                .setSection('pane')
+                .setSection('view-actions')
                 .onClick(() => {
                   this.kanbanFileModes[(leaf as any).id || file.path] = kanbanViewType;
                   this.setKanbanView(leaf);
@@ -452,11 +518,30 @@ export default class KanbanPlugin extends Plugin {
             item
               .setTitle(t('Open as kanban board'))
               .setIcon(kanbanIcon)
-              .setSection('pane')
+              .setSection('view-actions')
               .onClick(() => {
                 void this.openMarkdownAsKanban(markdownView);
               });
           });
+          menu.addItem((item) =>
+            item
+              .setTitle(t('View archive'))
+              .setIcon(archiveViewIcon)
+              .setSection('view-actions')
+              .onClick(() => {
+                void this.openMarkdownAsKanban(markdownView, true);
+              })
+          );
+        } else if (fileIsFile) {
+          const boardLeaf = leafIsKanban
+            ? leaf
+            : this.app.workspace
+                .getLeavesOfType(kanbanViewType)
+                .find(
+                  (candidate) =>
+                    candidate.view instanceof KanbanView && candidate.view.file === file
+                );
+          if (boardLeaf?.view instanceof KanbanView) boardLeaf.view.addArchiveMenuItem(menu);
         }
 
         if (fileIsFile && leafIsKanban) {
@@ -503,7 +588,7 @@ export default class KanbanPlugin extends Plugin {
                   .setIcon('lucide-settings')
                   .onClick(() => kanbanView.getBoardSettings())
               );
-            kanbanView.addViewMenuItems(menu);
+            kanbanView.addViewMenuItems(menu, false);
           }
         }
       })

@@ -1,5 +1,15 @@
 # View navigation and layout — 2.0.53
 
+## Header and icon follow-up — 2.0.54
+
+- Kanban has a dedicated archive toggle in the native `.view-actions` container, with the archive count in its accessible label and its state in `aria-pressed`. It is independent of the view-selector visibility setting.
+- Matching Markdown notes have native header actions for opening the board and opening the archive directly. Changing or removing the live property updates these actions; switching away or unloading removes them.
+- Both actions are available in the native context menu's `view-actions` section. Board menus include a single archive entry; mobile view-selector construction avoids adding a duplicate.
+- Board and archive icons are registered local SVG assets with plugin-specific IDs, inheriting `currentColor`. Ribbon, view tabs, header buttons, and context-menu icons share the registrations instead of relying on the old `lucide-trello` name.
+- Entering the archive from Markdown reconciles its initial visibility after the preview subscribes, avoiding an active archive button with regular board contents still showing.
+
+Validated in the isolated Windows / Obsidian 1.15.1 fixture: both Markdown actions had `.view-actions` parents and nonempty SVGs; both native menu entries reported section `view-actions` and nonempty SVGs. Removing the property removed both actions, restoring it recreated exactly two, and the header archive action displayed the archived card. The board's dedicated button toggled archive visibility and `aria-pressed`, and the ribbon contained the registered board SVG. Mobile device testing remains unperformed.
+
 ## Behavior
 
 - An open Markdown note with a supported `kanban-plugin` property offers **Open as kanban board** in its menu and in the command palette. The existing toggle command also works. Supported formats are `board`, `table`, `list`, legacy `basic`, and their single-item list forms. Similar property names, body mentions, and malformed YAML do not qualify.
